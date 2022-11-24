@@ -3,6 +3,7 @@ package converter
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -56,6 +57,7 @@ type HexoBlog struct {
 	Date      string   // 2022-06-28
 	Tags      []string //
 	Content   string   // blog content
+	Imgs      []string // imgs used by this blog
 }
 
 // ReadHexoBlogs read blogs and collect imgs under the blog
@@ -143,7 +145,27 @@ func extractHeaderAndContent(fileContent string) (*HexoBlog, error) {
 
 	start = lastHeaderIdx + len(sep) + len("\n")
 	blog.Content = fileContent[start:]
+	blog.Imgs = extractImgFromContent(blog.Content)
 	return blog, nil
+}
+
+func extractImgFromContent(content string) []string {
+	exp := `asset_img\s+(.*\.jpg)\s+`
+	regp, err := regexp.Compile(exp)
+	if err != nil {
+		fmt.Printf("compile %s err: %v\n", exp, err)
+		return nil
+	}
+
+	var imgs []string
+	results := regp.FindAllString(content, -1)
+	for _, rs := range results {
+		// asset_img create_bucket_step2.jpg
+		img := strings.Split(strings.TrimSpace(rs), " ")[1]
+		imgs = append(imgs, img)
+	}
+
+	return imgs
 }
 
 func parseHeader(header string) *HexoBlog {
@@ -189,6 +211,10 @@ func collectImgsFromBlogDir(blogPath string, blogDirs []string) ([]string, error
 		}
 
 		for _, f := range fs {
+			if strings.HasSuffix(f.Name(), ".DS_Store") {
+				continue
+			}
+
 			if !f.IsDir() {
 				images = append(images, blogPath+"/"+f.Name())
 			}
@@ -198,7 +224,7 @@ func collectImgsFromBlogDir(blogPath string, blogDirs []string) ([]string, error
 	return images, nil
 }
 
-func replaceImg(concent string) string {
+func replaceImg(content string) string {
 	return ""
 }
 
