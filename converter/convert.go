@@ -68,12 +68,18 @@ func ReadHexoBlogs(dir string) ([]*HexoBlog, []string, error) {
 	var blogFiles []string
 	var blogDirs []string
 	for _, f := range fs {
-		if f.IsDir() {
-			blogDirs = append(blogDirs, f.Name())
+		if strings.HasSuffix(f.Name(), ".DS_Store") {
 			continue
 		}
 
-		blogFiles = append(blogFiles, f.Name())
+		if f.IsDir() {
+			blogDirs = append(blogDirs, dir+"/"+f.Name())
+			continue
+		}
+
+		if strings.HasSuffix(f.Name(), ".md") {
+			blogFiles = append(blogFiles, f.Name())
+		}
 	}
 
 	fmt.Printf("blogDirs: %v\n", blogDirs)
@@ -88,11 +94,17 @@ func ReadHexoBlogs(dir string) ([]*HexoBlog, []string, error) {
 			errs = append(errs, err.Error())
 			continue
 		}
+
 		hexoBlogs = append(hexoBlogs, blog)
+	}
+
+	if len(errs) > 0 {
+		return nil, nil, fmt.Errorf("%s", strings.Join(errs, ", "))
 	}
 
 	imgs, err := collectImgsFromBlogDir(dir, blogDirs)
 	if err != nil {
+		fmt.Printf("collectImgsFromBlogDir err: %v\n", err)
 		return nil, nil, err
 	}
 
