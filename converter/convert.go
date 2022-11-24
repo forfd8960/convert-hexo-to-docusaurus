@@ -58,10 +58,11 @@ type HexoBlog struct {
 	Content   string   // blog content
 }
 
-func ReadHexoBlogs(dir string) ([]*HexoBlog, Imgs []string, error) {
+// ReadHexoBlogs read blogs and collect imgs under the blog
+func ReadHexoBlogs(dir string) ([]*HexoBlog, []string, error) {
 	fs, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	var blogFiles []string
@@ -90,8 +91,12 @@ func ReadHexoBlogs(dir string) ([]*HexoBlog, Imgs []string, error) {
 		hexoBlogs = append(hexoBlogs, blog)
 	}
 
-	//todo: collect all imgs
-	return hexoBlogs, nil, nil
+	imgs, err := collectImgsFromBlogDir(dir, blogDirs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return hexoBlogs, imgs, nil
 }
 
 func extractHexoBlog(name, blogPath string) (*HexoBlog, error) {
@@ -140,17 +145,18 @@ func parseHeader(header string) *HexoBlog {
 		tags: AWS, S3, Hexo
 		---
 	*/
+	fmt.Printf("headers: %v\n", hds)
+
 	for _, hd := range hds {
 		hd = strings.TrimSpace(hd)
 
-		if strings.HasPrefix(hd, "title") {
-			title = strings.Split(hd, ":")[1]
-		}
-		if strings.HasPrefix(hd, "date") {
-			title = strings.Split(hd, ":")[1]
-		}
-		if strings.HasPrefix(hd, "tags") {
-			tagsStr := strings.Split(hd, ":")[1]
+		switch {
+		case strings.Contains(hd, "title"):
+			title = strings.Split(hd, ": ")[1]
+		case strings.Contains(hd, "date"):
+			date = strings.Split(hd, ": ")[1]
+		case strings.Contains(hd, "tags"):
+			tagsStr := strings.Split(hd, ": ")[1]
 			tags = strings.Split(tagsStr, ", ")
 		}
 	}
@@ -162,8 +168,22 @@ func parseHeader(header string) *HexoBlog {
 	}
 }
 
-func collectImgsFromBlogDir(blogDirs []string) ([]string, error) {
-	return nil, nil
+func collectImgsFromBlogDir(blogPath string, blogDirs []string) ([]string, error) {
+	var images = []string{}
+	for _, dir := range blogDirs {
+		fs, err := os.ReadDir(dir)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, f := range fs {
+			if !f.IsDir() {
+				images = append(images, blogPath+"/"+f.Name())
+			}
+		}
+	}
+
+	return images, nil
 }
 
 func replaceImg(concent string) string {
