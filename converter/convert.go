@@ -11,6 +11,17 @@ var (
 	errInvalidBlogFormat = fmt.Errorf("invalid blog format")
 )
 
+const docusaurusTmpl = `
+---
+slug: %s
+title: %s
+authors: [%s]
+tags: %v
+---
+
+%s
+`
+
 /*
 Docusaurus Blog Format
 
@@ -31,7 +42,14 @@ A blog post folder can be convenient to co-locate blog post images:
 ![Docusaurus Plushie](./docusaurus-plushie-banner.jpeg)
 
 */
+
+// DocusaurusBlog ...
+// Use Date-SlugTitle as the blog dir name
 type DocusaurusBlog struct {
+	SlugTitle string
+	Date      string
+	Content   string // rendered by template
+	Imgs      []string
 }
 
 /*
@@ -224,12 +242,65 @@ func collectImgsFromBlogDir(blogPath string, blogDirs []string) ([]string, error
 	return images, nil
 }
 
-func replaceImg(content string) string {
+func GenerateDocusaurusBlogs(blogs []*HexoBlog) []*DocusaurusBlog {
+	var results []*DocusaurusBlog
+	for _, hb := range blogs {
+		dblog := generateDocusaurusBlog(hb)
+		results = append(results, dblog)
+	}
+	return results
+}
+
+func getImgName(p string) string {
+	imgs := extractImgFromContent(p)
+	if len(imgs) > 0 {
+		return imgs[0]
+	}
+
 	return ""
 }
 
+func replaceImg(content string) (string, error) {
+	exp := `{%\s+asset_img\s+(.*\.jpg).*%}`
+	regp, err := regexp.Compile(exp)
+	if err != nil {
+		return "", err
+	}
+
+	results := regp.FindAllString(content, -1)
+	fmt.Printf("matched strings: %v\n", results)
+
+	replaceMap := map[string]string{}
+	for _, rs := range results {
+		imgName := getImgName(rs)
+		replaceMap[rs] = fmt.Sprintf("![%s](./%s)", imgName, imgName)
+	}
+
+	replaced := regp.ReplaceAllStringFunc(content, func(s string) string {
+		return replaceMap[s]
+	})
+	return replaced, nil
+}
+
 func generateDocusaurusBlog(hblog *HexoBlog) *DocusaurusBlog {
-	return nil
+	dblog := &DocusaurusBlog{
+		SlugTitle: hblog.SlugTitle,
+		Date:      strings.Split(hblog.Date, " ")[0], // only need year-month-day
+		Content:   hblog.Content,
+	}
+
+	if len(hblog.Imgs) == 0 {
+		return dblog
+	}
+
+	var err error
+	dblog.Content, err = replaceImg(dblog.Content)
+	if err != nil {
+		fmt.Printf("replaceImg err: %v\n", err)
+		return dblog
+	}
+
+	return dblog
 }
 
 func WriteDocusaurusBlogs([]*DocusaurusBlog) error {

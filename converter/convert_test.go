@@ -141,3 +141,34 @@ func TestRegexp1(t *testing.T) {
 	assert.Equal(t, expectResults, results)
 	fmt.Printf("matched strings: %v\n", results)
 }
+
+func TestRegexp2(t *testing.T) {
+	content := `abc
+	{% asset_img create_bucket_step1.jpg create bucket on s3 %}
+	{% asset_img create_bucket_step2.jpg create bucket on s3 %}
+	def
+	`
+
+	exp := `{%\s+asset_img\s+(.*\.jpg).*%}`
+	regp, err := regexp.Compile(exp)
+	assert.Nil(t, err)
+
+	results := regp.FindAllString(content, -1)
+	expectResults := []string{
+		`{% asset_img create_bucket_step1.jpg create bucket on s3 %}`,
+		`{% asset_img create_bucket_step2.jpg create bucket on s3 %}`,
+	}
+	assert.Equal(t, expectResults, results)
+	fmt.Printf("matched strings: %v\n", results)
+
+	replaceMap := map[string]string{
+		results[0]: "![0](./create_bucket_step1.jpg)",
+		results[1]: "![1](./create_bucket_step2.jpg)",
+	}
+
+	replaced := regp.ReplaceAllStringFunc(content, func(s string) string {
+		return replaceMap[s]
+	})
+
+	fmt.Printf("replaced: %s\n", replaced)
+}
