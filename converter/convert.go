@@ -2,9 +2,13 @@ package converter
 
 import (
 	"fmt"
+	"io/fs"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 var (
@@ -168,7 +172,7 @@ func extractHeaderAndContent(fileContent string) (*HexoBlog, error) {
 }
 
 func extractImgFromContent(content string) []string {
-	exp := `asset_img\s+(.*\.jpg)\s+`
+	exp := `asset_img\s+(.*(\.jpg|\.png|\.jpeg))\s+`
 	regp, err := regexp.Compile(exp)
 	if err != nil {
 		fmt.Printf("compile %s err: %v\n", exp, err)
@@ -242,10 +246,10 @@ func collectImgsFromBlogDir(blogPath string, blogDirs []string) ([]string, error
 	return images, nil
 }
 
-func GenerateDocusaurusBlogs(blogs []*HexoBlog) []*DocusaurusBlog {
+func GenerateDocusaurusBlogs(author string, blogs []*HexoBlog) []*DocusaurusBlog {
 	var results []*DocusaurusBlog
 	for _, hb := range blogs {
-		dblog := generateDocusaurusBlog(hb)
+		dblog := generateDocusaurusBlog(author, hb)
 		results = append(results, dblog)
 	}
 	return results
@@ -261,7 +265,7 @@ func getImgName(p string) string {
 }
 
 func replaceImg(content string) (string, error) {
-	exp := `{%\s+asset_img\s+(.*\.jpg).*%}`
+	exp := `{%\s+asset_img\s+(.*(\.jpg|\.png|\.jpeg)).*%}`
 	regp, err := regexp.Compile(exp)
 	if err != nil {
 		return "", err
@@ -273,7 +277,7 @@ func replaceImg(content string) (string, error) {
 	replaceMap := map[string]string{}
 	for _, rs := range results {
 		imgName := getImgName(rs)
-		replaceMap[rs] = fmt.Sprintf("![%s](./%s)", imgName, imgName)
+		replaceMap[rs] = fmt.Sprintf("![%s](./%s)", strings.Split(imgName, ".")[0], imgName)
 	}
 
 	replaced := regp.ReplaceAllStringFunc(content, func(s string) string {
@@ -282,12 +286,19 @@ func replaceImg(content string) (string, error) {
 	return replaced, nil
 }
 
-func generateDocusaurusBlog(hblog *HexoBlog) *DocusaurusBlog {
+func generateDocusaurusBlog(author string, hblog *HexoBlog) *DocusaurusBlog {
 	dblog := &DocusaurusBlog{
 		SlugTitle: hblog.SlugTitle,
 		Date:      strings.Split(hblog.Date, " ")[0], // only need year-month-day
 		Content:   hblog.Content,
+		Imgs:      hblog.Imgs,
 	}
+	dblog.Content = fmt.Sprintf(docusaurusTmpl,
+		hblog.SlugTitle,
+		hblog.Title,
+		author,
+		hblog.Content,
+	)
 
 	if len(hblog.Imgs) == 0 {
 		return dblog
@@ -296,13 +307,100 @@ func generateDocusaurusBlog(hblog *HexoBlog) *DocusaurusBlog {
 	var err error
 	dblog.Content, err = replaceImg(dblog.Content)
 	if err != nil {
-		fmt.Printf("replaceImg err: %v\n", err)
+		fmt.Printf("[generateDocusaurusBlog] replaceImg err: %v\n", err)
 		return dblog
 	}
 
 	return dblog
 }
 
-func WriteDocusaurusBlogs([]*DocusaurusBlog) error {
+func ExportDocusaurusBlogs(docBlogPath string, docBlogs []*DocusaurusBlog, allImgs []string) error {
+	errs := []string{}
+	for _, blog := range docBlogs {
+		if err := generateDocusaurusBlogDirs(docBlogPath, blog, allImgs); err != nil {
+			fmt.Printf("generateDocusaurusBlogDirs err: %v\n", err)
+			errs = append(errs, err.Error())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
+func generateDocusaurusBlogDirs(docBlogPath string, docBlog *DocusaurusBlog, allImgs []string) error {
+	dirName := docBlog.Date + "-" + docBlog.SlugTitle
+	dirPath := docBlogPath + "/" + dirName
+	if err := os.Mkdir(dirPath, os.ModePerm); err != nil {
+		fmt.Printf("mkdir err: %v\n", err)
+		return err
+	}
+
+	indexMd := dirPath + "/" + "index.md"
+	if err := ioutil.WriteFile(indexMd, []byte(docBlog.Content), fs.ModePerm); err != nil {
+		return err
+	}
+	if len(docBlog.Imgs) <= 0 {
+		return nil
+	}
+
+	blogSrcImgs := filterImgs(allImgs, docBlog.Imgs)
+	if len(blogSrcImgs) == 0 {
+		fmt.Printf("filterImgs not found src imgs, docBlog.Imgs: %v\n", docBlog.Imgs)
+		return nil
+	}
+
+	copyImgs(blogSrcImgs, dirPath)
+	return nil
+}
+
+func filterImgs(allSrcImgs []string, imgNames []string) []string {
+	imgSet := make(map[string]struct{}, len(imgNames))
+	for _, img := range imgNames {
+		imgSet[img] = struct{}{}
+	}
+
+	filteredImgs := []string{}
+	for _, imgPath := range allSrcImgs {
+		_, imgFile := filepath.Split(imgPath)
+		_, ok := imgSet[imgFile]
+		if ok {
+			filteredImgs = append(filteredImgs, imgPath)
+		}
+	}
+
+	return filteredImgs
+}
+
+func copyImgs(blogSrcImgs []string, dst string) {
+	var wg sync.WaitGroup
+	for _, srcImg := range blogSrcImgs {
+		wg.Add(1)
+
+		imgPath := srcImg
+		go func() {
+			defer wg.Done()
+			_, imgFile := filepath.Split(imgPath)
+			if err := copyImg(imgPath, dst+"/"+imgFile); err != nil {
+				fmt.Printf("copyImg err: %b\n", err)
+			}
+		}()
+	}
+	wg.Wait()
+}
+
+func copyImg(src, dst string) error {
+	data, err := ioutil.ReadFile(src)
+	if err != nil {
+		return err
+	}
+
+	// Write data to dst
+	if err := ioutil.WriteFile(dst, data, 0644); err != nil {
+		return err
+	}
+
 	return nil
 }
