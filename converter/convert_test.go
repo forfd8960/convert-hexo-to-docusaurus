@@ -263,7 +263,8 @@ The blog post date can be extracted from filenames, such as:
 
 A blog post folder can be convenient to co-locate blog post images:
 
-![create_bucket_step1](./create_bucket_step1.jpg)`
+![create_bucket_step1](./create_bucket_step1.jpg)
+`
 
 	tests := []struct {
 		name    string

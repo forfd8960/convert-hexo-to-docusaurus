@@ -15,14 +15,12 @@ var (
 	errInvalidBlogFormat = fmt.Errorf("invalid blog format")
 )
 
-const docusaurusTmpl = `
----
+const docusaurusTmpl = `---
 slug: %s
 title: %s
 authors: [%s]
-tags: %v
+tags: [%s]
 ---
-
 %s
 `
 
@@ -83,8 +81,8 @@ type HexoBlog struct {
 }
 
 // ReadHexoBlogs read blogs and collect imgs under the blog
-func ReadHexoBlogs(dir string) ([]*HexoBlog, []string, error) {
-	fs, err := os.ReadDir(dir)
+func ReadHexoBlogs(blogsDir string) ([]*HexoBlog, []string, error) {
+	fs, err := os.ReadDir(blogsDir)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -97,7 +95,7 @@ func ReadHexoBlogs(dir string) ([]*HexoBlog, []string, error) {
 		}
 
 		if f.IsDir() {
-			blogDirs = append(blogDirs, dir+"/"+f.Name())
+			blogDirs = append(blogDirs, blogsDir+"/"+f.Name())
 			continue
 		}
 
@@ -112,10 +110,9 @@ func ReadHexoBlogs(dir string) ([]*HexoBlog, []string, error) {
 	var hexoBlogs []*HexoBlog
 	var errs []string
 	for _, name := range blogFiles {
-
 		lastIdx := strings.LastIndex(name, ".")
 		slugTitle := name[:lastIdx]
-		blog, err := extractHexoBlog(slugTitle, dir+"/"+name)
+		blog, err := extractHexoBlog(slugTitle, blogsDir+"/"+name)
 		if err != nil {
 			fmt.Printf("extractHexoBlog err: %v, name: %s", err, name)
 			errs = append(errs, err.Error())
@@ -129,7 +126,7 @@ func ReadHexoBlogs(dir string) ([]*HexoBlog, []string, error) {
 		return nil, nil, fmt.Errorf("%s", strings.Join(errs, ", "))
 	}
 
-	imgs, err := collectImgsFromBlogDir(dir, blogDirs)
+	imgs, err := collectImgsFromBlogDir(blogDirs)
 	if err != nil {
 		fmt.Printf("collectImgsFromBlogDir err: %v\n", err)
 		return nil, nil, err
@@ -227,7 +224,7 @@ func parseHeader(header string) *HexoBlog {
 	}
 }
 
-func collectImgsFromBlogDir(blogPath string, blogDirs []string) ([]string, error) {
+func collectImgsFromBlogDir(blogDirs []string) ([]string, error) {
 	var images = []string{}
 	for _, dir := range blogDirs {
 		fs, err := os.ReadDir(dir)
@@ -241,7 +238,7 @@ func collectImgsFromBlogDir(blogPath string, blogDirs []string) ([]string, error
 			}
 
 			if !f.IsDir() {
-				images = append(images, blogPath+"/"+f.Name())
+				images = append(images, dir+"/"+f.Name())
 			}
 		}
 	}
@@ -300,7 +297,7 @@ func generateDocusaurusBlog(author string, hblog *HexoBlog) *DocusaurusBlog {
 		hblog.SlugTitle,
 		hblog.Title,
 		author,
-		hblog.Tags,
+		strings.Join(hblog.Tags, ", "),
 		hblog.Content,
 	)
 
@@ -398,11 +395,13 @@ func copyImgs(blogSrcImgs []string, dst string) {
 func copyImg(src, dst string) error {
 	data, err := ioutil.ReadFile(src)
 	if err != nil {
+		fmt.Printf("read file err: %v, src: %s\n", err, src)
 		return err
 	}
 
 	// Write data to dst
 	if err := ioutil.WriteFile(dst, data, 0644); err != nil {
+		fmt.Printf("write file err: %v, dst: %s\n", err, dst)
 		return err
 	}
 

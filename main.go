@@ -4,20 +4,36 @@ import (
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/forfd8960/convert-hexo-to-docusaurus/converter"
 )
 
 func main() {
-	cwd, err := os.Getwd()
-	if err != nil {
-		fmt.Println("load current dir err: ", err)
-		return
-	}
+	hexoBlogDir := flag.String("hexo", "", "hexo blog directory")
+	docBlogDir := flag.String("docusaurus", "", "docusaurus blog directory")
+	author := flag.String("author", "", "blog author name")
+	flag.Parse()
 
-	blogDir := flag.String("", cwd, "hexo blog directory")
-	if len(*blogDir) == 0 {
+	if len(*hexoBlogDir) == 0 || len(*docBlogDir) == 0 {
 		fmt.Fprintln(os.Stderr, "blog dir is empty")
 		return
 	}
+	if len(*author) == 0 {
+		fmt.Fprintln(os.Stderr, "author is empty")
+		return
+	}
 
-	fmt.Println("blog directoty: ", *blogDir)
+	hexoBlogs, allImgs, err := converter.ReadHexoBlogs(*hexoBlogDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err.Error())
+		return
+	}
+
+	docBlogs := converter.GenerateDocusaurusBlogs(*author, hexoBlogs)
+	if err := converter.ExportDocusaurusBlogs(*docBlogDir, docBlogs, allImgs); err != nil {
+		fmt.Fprintln(os.Stderr, "export DocusaurusBlogs has err: "+err.Error())
+		return
+	}
+
+	fmt.Println("Convert Hexo Blogs to Docusaurus Blogs Success!")
 }
