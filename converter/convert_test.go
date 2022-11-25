@@ -74,7 +74,7 @@ print("host static site s3")
 			},
 			blogs: []*HexoBlog{
 				{
-					SlugTitle: "host-static-site-on-aws-s3.md",
+					SlugTitle: "host-static-site-on-aws-s3",
 					Title:     "host static blog on aws s3",
 					Date:      "2022-06-28 09:16:48",
 					Tags:      []string{"AWS", "S3", "Hexo"},
@@ -235,6 +235,63 @@ func Test_replaceImg(t *testing.T) {
 			}
 			if got != tt.want {
 				t.Errorf("replaceImg() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestExportDocusaurusBlogs(t *testing.T) {
+	type args struct {
+		docBlogPath string
+		docBlogs    []*DocusaurusBlog
+		allImgs     []string
+	}
+
+	basePath := os.Getenv("HOME") + "/Documents/projects/convert-hexo-to-docusaurus"
+	testDocBlogPath := basePath + "/mockdocblogs"
+	testImgPath := basePath + "/mockhexoblogs/host-static-site-on-aws-s3/create_bucket_step1.jpg"
+
+	testContent := `---
+slug: host-static-site-on-aws-s3
+title: Host static web on AWS S3
+authors: [test]
+tags: [AWS, S3]
+---
+
+The blog post date can be extracted from filenames, such as:
+
+
+A blog post folder can be convenient to co-locate blog post images:
+
+![create_bucket_step1](./create_bucket_step1.jpg)`
+
+	tests := []struct {
+		name    string
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "happy path",
+			args: args{
+				docBlogPath: testDocBlogPath,
+				docBlogs: []*DocusaurusBlog{
+					{
+						SlugTitle: "host-static-site-on-aws-s3",
+						Date:      "2022-06-28",
+						Content:   testContent,
+						Imgs:      []string{"create_bucket_step1.jpg"},
+					},
+				},
+				allImgs: []string{testImgPath},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ExportDocusaurusBlogs(tt.args.docBlogPath, tt.args.docBlogs, tt.args.allImgs); (err != nil) != tt.wantErr {
+				t.Errorf("ExportDocusaurusBlogs() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
 	}

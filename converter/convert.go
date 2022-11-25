@@ -112,7 +112,10 @@ func ReadHexoBlogs(dir string) ([]*HexoBlog, []string, error) {
 	var hexoBlogs []*HexoBlog
 	var errs []string
 	for _, name := range blogFiles {
-		blog, err := extractHexoBlog(name, dir+"/"+name)
+
+		lastIdx := strings.LastIndex(name, ".")
+		slugTitle := name[:lastIdx]
+		blog, err := extractHexoBlog(slugTitle, dir+"/"+name)
 		if err != nil {
 			fmt.Printf("extractHexoBlog err: %v, name: %s", err, name)
 			errs = append(errs, err.Error())
@@ -135,7 +138,7 @@ func ReadHexoBlogs(dir string) ([]*HexoBlog, []string, error) {
 	return hexoBlogs, imgs, nil
 }
 
-func extractHexoBlog(name, blogPath string) (*HexoBlog, error) {
+func extractHexoBlog(slugTitle, blogPath string) (*HexoBlog, error) {
 	fileContentBs, err := os.ReadFile(blogPath)
 	if err != nil {
 		return nil, err
@@ -146,7 +149,7 @@ func extractHexoBlog(name, blogPath string) (*HexoBlog, error) {
 	if err != nil {
 		return nil, err
 	}
-	blog.SlugTitle = name
+	blog.SlugTitle = slugTitle
 	return blog, nil
 }
 
@@ -297,6 +300,7 @@ func generateDocusaurusBlog(author string, hblog *HexoBlog) *DocusaurusBlog {
 		hblog.SlugTitle,
 		hblog.Title,
 		author,
+		hblog.Tags,
 		hblog.Content,
 	)
 
