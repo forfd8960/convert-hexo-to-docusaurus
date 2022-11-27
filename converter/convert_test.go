@@ -83,7 +83,7 @@ print("host static site s3")
 				},
 			},
 			imgs: []string{
-				testPath + "/create_bucket_step1.jpg",
+				testPath + "/host-static-site-on-aws-s3" + "/create_bucket_step1.jpg",
 			},
 			wantErr: false,
 		},

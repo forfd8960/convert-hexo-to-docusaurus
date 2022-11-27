@@ -151,7 +151,7 @@ func extractHexoBlog(slugTitle, blogPath string) (*HexoBlog, error) {
 }
 
 func extractHeaderAndContent(fileContent string) (*HexoBlog, error) {
-	sep := "---"
+	sep := "---\n"
 	headerIdx := strings.Index(fileContent, sep)
 	if headerIdx == -1 {
 		return nil, errInvalidBlogFormat
@@ -165,7 +165,7 @@ func extractHeaderAndContent(fileContent string) (*HexoBlog, error) {
 	header := fileContent[start:lastHeaderIdx]
 	blog := parseHeader(header)
 
-	start = lastHeaderIdx + len(sep) + len("\n")
+	start = lastHeaderIdx + len(sep)
 	blog.Content = fileContent[start:]
 	blog.Imgs = extractImgFromContent(blog.Content)
 	return blog, nil
@@ -212,8 +212,10 @@ func parseHeader(header string) *HexoBlog {
 		case strings.Contains(hd, "date"):
 			date = strings.Split(hd, ": ")[1]
 		case strings.Contains(hd, "tags"):
-			tagsStr := strings.Split(hd, ": ")[1]
-			tags = strings.Split(tagsStr, ", ")
+			tagsStr := strings.Split(hd, ": ")
+			if len(tagsStr) == 2 {
+				tags = strings.Split(tagsStr[1], ", ")
+			}
 		}
 	}
 
